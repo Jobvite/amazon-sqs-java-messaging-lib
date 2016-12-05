@@ -20,7 +20,8 @@ import javax.jms.JMSSecurityException;
 import javax.jms.QueueConnection;
 import javax.jms.QueueConnectionFactory;
 
-
+import com.amazon.sqs.javamessaging.acknowledge.SQSMessageRetryMode;
+import com.amazon.sqs.javamessaging.acknowledge.SQSMessageRetryMode.RetryMode;
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.AWSCredentialsProvider;
@@ -56,6 +57,7 @@ public class SQSConnectionFactory implements ConnectionFactory, QueueConnectionF
     private final String endpoint;
     private final String signerRegionOverride;
     private final AWSCredentialsProvider awsCredentialsProvider;
+    private final SQSMessageRetryMode sqsMessageRetryMode;
 
     /** Controls the size of the prefetch buffers used by consumers. */
     private final int numberOfMessagesToPrefetch;
@@ -67,6 +69,7 @@ public class SQSConnectionFactory implements ConnectionFactory, QueueConnectionF
         this.clientConfig = builder.clientConfiguration;
         this.awsCredentialsProvider = builder.awsCredentialsProvider;
         this.numberOfMessagesToPrefetch = builder.numberOfMessagesToPrefetch;
+        this.sqsMessageRetryMode = new SQSMessageRetryMode(builder.retryMode, builder.retryDelay);
     }
 
     @Override
@@ -87,14 +90,14 @@ public class SQSConnectionFactory implements ConnectionFactory, QueueConnectionF
         AmazonSQSClient amazonSQSClient = new AmazonSQSClient(awsCredentials, clientConfig);
         configureClient(amazonSQSClient);
         AmazonSQSMessagingClientWrapper amazonSQSClientJMSWrapper = new AmazonSQSMessagingClientWrapper(amazonSQSClient);
-        return new SQSConnection(amazonSQSClientJMSWrapper, numberOfMessagesToPrefetch);
+        return new SQSConnection(amazonSQSClientJMSWrapper, numberOfMessagesToPrefetch, sqsMessageRetryMode);
     }
     
     public SQSConnection createConnection(AWSCredentialsProvider awsCredentialsProvider) throws JMSException {
         AmazonSQSClient amazonSQSClient = new AmazonSQSClient(awsCredentialsProvider, clientConfig);
         configureClient(amazonSQSClient);
         AmazonSQSMessagingClientWrapper amazonSQSClientJMSWrapper = new AmazonSQSMessagingClientWrapper(amazonSQSClient);
-        return new SQSConnection(amazonSQSClientJMSWrapper, numberOfMessagesToPrefetch);
+        return new SQSConnection(amazonSQSClientJMSWrapper, numberOfMessagesToPrefetch, sqsMessageRetryMode);
     }
     
     @Override
@@ -118,6 +121,8 @@ public class SQSConnectionFactory implements ConnectionFactory, QueueConnectionF
         private ClientConfiguration clientConfiguration;
         private int numberOfMessagesToPrefetch;
         private AWSCredentialsProvider awsCredentialsProvider = new DefaultAWSCredentialsProviderChain();
+        private RetryMode retryMode = RetryMode.RETRY_MODE_DEFAULT_DELAY;
+        private int retryDelay = 0;
         
         public Builder(Region region) {
             this();
@@ -177,6 +182,16 @@ public class SQSConnectionFactory implements ConnectionFactory, QueueConnectionF
 
         public Builder withNumberOfMessagesToPrefetch(int numberOfMessagesToPrefetch) {
             setNumberOfMessagesToPrefetch(numberOfMessagesToPrefetch);
+            return this;
+        }
+
+        public Builder withRetryMode(RetryMode retryMode) {
+            setRetryMode(retryMode);
+            return this;
+        }
+
+        public Builder withRetryDelay(int retryDelay) {
+            setRetryDelay(retryDelay);
             return this;
         }
 
@@ -245,6 +260,25 @@ public class SQSConnectionFactory implements ConnectionFactory, QueueConnectionF
         public void setAwsCredentialsProvider(
                 AWSCredentialsProvider awsCredentialsProvider) {
             this.awsCredentialsProvider = awsCredentialsProvider;
+        }
+        public RetryMode getRetryMode()
+        {
+            return retryMode;
+        }
+
+        public void setRetryMode(RetryMode retryMode)
+        {
+            this.retryMode = retryMode;
+        }
+
+        public int getRetryDelay()
+        {
+            return retryDelay;
+        }
+
+        public void setRetryDelay(int retryDelay)
+        {
+            this.retryDelay = retryDelay;
         }
     }
     

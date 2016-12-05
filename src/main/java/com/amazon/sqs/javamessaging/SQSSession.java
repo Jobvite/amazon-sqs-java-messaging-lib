@@ -529,7 +529,7 @@ public class SQSSession implements Session, QueueSession {
     SQSMessageConsumer createSQSMessageConsumer(SQSQueueDestination destination) {
         return new SQSMessageConsumer(
                 parentSQSConnection, this, sqsSessionRunnable, (SQSQueueDestination) destination,
-                acknowledger,  new NegativeAcknowledger(amazonSQSClient),
+                acknowledger,  new NegativeAcknowledger(amazonSQSClient, parentSQSConnection.getSQSMessageRetryMode()),
                 CONSUMER_PREFETCH_THREAD_FACTORY);
     }
 

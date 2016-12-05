@@ -21,8 +21,12 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import javax.jms.JMSException;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
 import com.amazon.sqs.javamessaging.AmazonSQSMessagingClientWrapper;
 import com.amazon.sqs.javamessaging.SQSMessagingClientConstants;
+import com.amazon.sqs.javamessaging.SQSSession;
 import com.amazon.sqs.javamessaging.SQSMessageConsumerPrefetch.MessageManager;
 import com.amazon.sqs.javamessaging.message.SQSMessage;
 import com.amazonaws.services.sqs.model.ChangeMessageVisibilityBatchRequest;
@@ -39,6 +43,8 @@ import com.amazonaws.services.sqs.model.ChangeMessageVisibilityBatchRequestEntry
  */
 public class NegativeAcknowledger extends BulkSQSOperation {
 
+    private static final Log LOG = LogFactory.getLog(SQSSession.class);
+
     private static final AtomicLong DEFAULT_BATCH_ID_GENERATOR = new AtomicLong();
 
     private static final int NACK_TIMEOUT = 0;
@@ -47,14 +53,18 @@ public class NegativeAcknowledger extends BulkSQSOperation {
 
     private final AmazonSQSMessagingClientWrapper amazonSQSClient;
 
-    public NegativeAcknowledger(AmazonSQSMessagingClientWrapper amazonSQSClient, AtomicLong batchIdGenerator) {
+    private final SQSMessageRetryMode sqsMessageRetryMode;
+
+    public NegativeAcknowledger(AmazonSQSMessagingClientWrapper amazonSQSClient, AtomicLong batchIdGenerator, SQSMessageRetryMode sqsMessageRetryMode) {
         this.amazonSQSClient = amazonSQSClient;
         this.batchIdGenerator = batchIdGenerator;
+        this.sqsMessageRetryMode = sqsMessageRetryMode;
     }
 
-    public NegativeAcknowledger(AmazonSQSMessagingClientWrapper amazonSQSClient) {
+    public NegativeAcknowledger(AmazonSQSMessagingClientWrapper amazonSQSClient, SQSMessageRetryMode sqsMessageRetryMode) {
         this.amazonSQSClient = amazonSQSClient;
         this.batchIdGenerator = DEFAULT_BATCH_ID_GENERATOR;
+        this.sqsMessageRetryMode = sqsMessageRetryMode;
     }
     
     /**
@@ -103,11 +113,44 @@ public class NegativeAcknowledger extends BulkSQSOperation {
             return;
         }
 
+        int visibilityTimeout = NACK_TIMEOUT;
+        
+        // if sqsMessageRetryMode is null, default to NACK_TIMEOUT.
+        if(sqsMessageRetryMode != null)
+        {
+            if(LOG.isDebugEnabled())
+            {
+                LOG.debug(String.format("NegativeAcknowledger - sqsMessageRetryMode. RetryMode: %s, RetryDelay: %d, queueUrl: %s", sqsMessageRetryMode.getRetryMode().toString(), sqsMessageRetryMode.getRetryDelay(), queueUrl));
+            }
+            
+            switch(sqsMessageRetryMode.getRetryMode())
+            {
+                case RETRY_MODE_EXPLICIT_DELAY:
+                    // make sure the new retry delay value is >= 0, else default to NACK_TIMEOUT.
+                    visibilityTimeout = sqsMessageRetryMode.getRetryDelay() >= 0 ? sqsMessageRetryMode.getRetryDelay() : NACK_TIMEOUT;
+                    break;
+                case RETRY_MODE_QUEUE_DELAY:
+                    // do not update the VisibilityTimeout already set at the queue level by simply returning here.
+                    return;
+                case RETRY_MODE_DEFAULT_DELAY:
+                default:
+                    visibilityTimeout = NACK_TIMEOUT;
+                    break;
+            }
+        }
+        else
+        {
+            if(LOG.isDebugEnabled())
+            {
+                LOG.warn(String.format("NegativeAcknowledger - sqsMessageRetryMode is null, visibilityTimeout: %d, queueUrl: %s", visibilityTimeout, queueUrl));
+            }
+        }
+        
         List<ChangeMessageVisibilityBatchRequestEntry> nackEntries = new ArrayList<ChangeMessageVisibilityBatchRequestEntry>(
                 receiptHandles.size());
         for (String messageReceiptHandle : receiptHandles) {
             ChangeMessageVisibilityBatchRequestEntry changeMessageVisibilityBatchRequestEntry = new ChangeMessageVisibilityBatchRequestEntry(
-                    batchIdGenerator.getAndIncrement() + "", messageReceiptHandle).withVisibilityTimeout(NACK_TIMEOUT);
+                    batchIdGenerator.getAndIncrement() + "", messageReceiptHandle).withVisibilityTimeout(visibilityTimeout);
             nackEntries.add(changeMessageVisibilityBatchRequestEntry);
         }
         amazonSQSClient.changeMessageVisibilityBatch(new ChangeMessageVisibilityBatchRequest(

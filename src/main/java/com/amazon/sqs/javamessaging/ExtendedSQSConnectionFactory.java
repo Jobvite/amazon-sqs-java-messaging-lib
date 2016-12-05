@@ -6,6 +6,8 @@ import javax.jms.JMSSecurityException;
 import javax.jms.QueueConnection;
 import javax.jms.QueueConnectionFactory;
 
+import com.amazon.sqs.javamessaging.acknowledge.SQSMessageRetryMode;
+import com.amazon.sqs.javamessaging.acknowledge.SQSMessageRetryMode.RetryMode;
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.AWSCredentialsProvider;
@@ -23,6 +25,7 @@ public class ExtendedSQSConnectionFactory implements ConnectionFactory, QueueCon
     private final String signerRegionOverride;
     private final AWSCredentialsProvider awsCredentialsProvider;
     private AmazonSQS sqsClient;
+    private final SQSMessageRetryMode sqsMessageRetryMode;
 
     /** Controls the size of the prefetch buffers used by consumers. */
     private final int numberOfMessagesToPrefetch;
@@ -35,6 +38,7 @@ public class ExtendedSQSConnectionFactory implements ConnectionFactory, QueueCon
         this.awsCredentialsProvider = builder.awsCredentialsProvider;
         this.numberOfMessagesToPrefetch = builder.numberOfMessagesToPrefetch;
         this.sqsClient = builder.sqsClient;
+        this.sqsMessageRetryMode = new SQSMessageRetryMode(builder.retryMode, builder.retryDelay);
     }
 
     @Override
@@ -57,7 +61,7 @@ public class ExtendedSQSConnectionFactory implements ConnectionFactory, QueueCon
         }
         configureClient(sqsClient);
         AmazonSQSMessagingClientWrapper amazonSQSClientJMSWrapper = new AmazonSQSMessagingClientWrapper(sqsClient);
-        return new SQSConnection(amazonSQSClientJMSWrapper, numberOfMessagesToPrefetch);
+        return new SQSConnection(amazonSQSClientJMSWrapper, numberOfMessagesToPrefetch, sqsMessageRetryMode);
     }
     
     public SQSConnection createConnection(AWSCredentialsProvider awsCredentialsProvider) throws JMSException {
@@ -66,7 +70,7 @@ public class ExtendedSQSConnectionFactory implements ConnectionFactory, QueueCon
         }
         configureClient(sqsClient);
         AmazonSQSMessagingClientWrapper amazonSQSClientJMSWrapper = new AmazonSQSMessagingClientWrapper(sqsClient);
-        return new SQSConnection(amazonSQSClientJMSWrapper, numberOfMessagesToPrefetch);
+        return new SQSConnection(amazonSQSClientJMSWrapper, numberOfMessagesToPrefetch, sqsMessageRetryMode);
     }
     
     @Override
@@ -91,6 +95,8 @@ public class ExtendedSQSConnectionFactory implements ConnectionFactory, QueueCon
         private int numberOfMessagesToPrefetch;
         private AWSCredentialsProvider awsCredentialsProvider = new DefaultAWSCredentialsProviderChain();
         private AmazonSQS sqsClient;
+        private RetryMode retryMode = RetryMode.RETRY_MODE_DEFAULT_DELAY;
+        private int retryDelay = 0;
         
         public Builder(Region region) {
             this();
@@ -155,6 +161,16 @@ public class ExtendedSQSConnectionFactory implements ConnectionFactory, QueueCon
         
         public Builder withSqsClient(AmazonSQS sqsClient) {
             setSqsClient(sqsClient);
+            return this;
+        }
+
+        public Builder withRetryMode(RetryMode retryMode) {
+            setRetryMode(retryMode);
+            return this;
+        }
+
+        public Builder withRetryDelay(int retryDelay) {
+            setRetryDelay(retryDelay);
             return this;
         }
 
@@ -231,6 +247,25 @@ public class ExtendedSQSConnectionFactory implements ConnectionFactory, QueueCon
 
         public void setSqsClient(AmazonSQS sqsClient) {
             this.sqsClient = sqsClient;
+        }
+        public RetryMode getRetryMode()
+        {
+            return retryMode;
+        }
+
+        public void setRetryMode(RetryMode retryMode)
+        {
+            this.retryMode = retryMode;
+        }
+
+        public int getRetryDelay()
+        {
+            return retryDelay;
+        }
+
+        public void setRetryDelay(int retryDelay)
+        {
+            this.retryDelay = retryDelay;
         }
     }
     

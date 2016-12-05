@@ -14,24 +14,6 @@
  */
 package com.amazon.sqs.javamessaging;
 
-import com.amazon.sqs.javamessaging.AmazonSQSMessagingClientWrapper;
-import com.amazon.sqs.javamessaging.PrefetchManager;
-import com.amazon.sqs.javamessaging.SQSMessageConsumerPrefetch;
-import com.amazon.sqs.javamessaging.acknowledge.AcknowledgeMode;
-import com.amazon.sqs.javamessaging.acknowledge.NegativeAcknowledger;
-import com.amazon.sqs.javamessaging.message.SQSMessage;
-import com.amazonaws.services.sqs.model.ChangeMessageVisibilityBatchRequest;
-import com.amazonaws.services.sqs.model.ChangeMessageVisibilityBatchRequestEntry;
-
-import javax.jms.JMSException;
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import org.junit.Before;
-import org.junit.Test;
-import org.mockito.ArgumentCaptor;
-
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyList;
@@ -43,6 +25,24 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
+import javax.jms.JMSException;
+
+import org.junit.Before;
+import org.junit.Test;
+import org.mockito.ArgumentCaptor;
+
+import com.amazon.sqs.javamessaging.acknowledge.NegativeAcknowledger;
+import com.amazon.sqs.javamessaging.acknowledge.SQSMessageRetryMode;
+import com.amazon.sqs.javamessaging.acknowledge.SQSMessageRetryMode.RetryMode;
+import com.amazon.sqs.javamessaging.message.SQSMessage;
+import com.amazonaws.services.sqs.model.ChangeMessageVisibilityBatchRequest;
+import com.amazonaws.services.sqs.model.ChangeMessageVisibilityBatchRequestEntry;
+
 /**
  * Test the NegativeAcknowledger class
  */
@@ -51,11 +51,19 @@ public class NegativeAcknowledgerTest extends AcknowledgerCommon {
     private static final String QUEUE_URL = "queueUrl";
 
     private NegativeAcknowledger negativeAcknowledger;
+    private NegativeAcknowledger negativeAcknowledgerRetryModeExplicitDelayNeg1;
+    private NegativeAcknowledger negativeAcknowledgerRetryModeExplicitDelay30;
+    private NegativeAcknowledger negativeAcknowledgerRetryModeQueueDelay;
+    private NegativeAcknowledger negativeAcknowledgerRetryModeNull;
 
     @Before
     public void setupRanded() throws JMSException {
         amazonSQSClient = mock(AmazonSQSMessagingClientWrapper.class);
-        negativeAcknowledger = spy(new NegativeAcknowledger(amazonSQSClient));
+        negativeAcknowledger = spy(new NegativeAcknowledger(amazonSQSClient, new SQSMessageRetryMode(RetryMode.RETRY_MODE_DEFAULT_DELAY, 30)));
+        negativeAcknowledgerRetryModeExplicitDelayNeg1 = spy(new NegativeAcknowledger(amazonSQSClient, new SQSMessageRetryMode(RetryMode.RETRY_MODE_EXPLICIT_DELAY, -1)));
+        negativeAcknowledgerRetryModeExplicitDelay30 = spy(new NegativeAcknowledger(amazonSQSClient, new SQSMessageRetryMode(RetryMode.RETRY_MODE_EXPLICIT_DELAY, 30)));
+        negativeAcknowledgerRetryModeQueueDelay = spy(new NegativeAcknowledger(amazonSQSClient, new SQSMessageRetryMode(RetryMode.RETRY_MODE_QUEUE_DELAY, 30)));
+        negativeAcknowledgerRetryModeNull = spy(new NegativeAcknowledger(amazonSQSClient, null));
     }
 
     /**
@@ -120,6 +128,110 @@ public class NegativeAcknowledgerTest extends AcknowledgerCommon {
         receiptHandles.add("r2");
 
         negativeAcknowledger.action(QUEUE_URL, receiptHandles);
+
+        ArgumentCaptor<ChangeMessageVisibilityBatchRequest> argumentCaptor =
+                ArgumentCaptor.forClass(ChangeMessageVisibilityBatchRequest.class);
+        verify(amazonSQSClient).changeMessageVisibilityBatch(argumentCaptor.capture());
+
+        assertEquals(1, argumentCaptor.getAllValues().size());
+
+        assertEquals(QUEUE_URL, argumentCaptor.getAllValues().get(0).getQueueUrl());
+        List<ChangeMessageVisibilityBatchRequestEntry> captureList =  argumentCaptor.getAllValues().get(0).getEntries();
+        assertEquals(receiptHandles.size(), captureList.size());
+
+        for (ChangeMessageVisibilityBatchRequestEntry item : captureList) {
+            receiptHandles.contains(item.getReceiptHandle());
+        }
+    }
+
+    /**
+     * Test NegativeAcknowledger action
+     */
+    @Test
+    public void testActionReplyModeExplicitDelayNeg1() throws JMSException {
+
+
+        List<String> receiptHandles = new ArrayList<String>();
+        receiptHandles.add("r0");
+        receiptHandles.add("r1");
+        receiptHandles.add("r2");
+
+        negativeAcknowledgerRetryModeExplicitDelayNeg1.action(QUEUE_URL, receiptHandles);
+
+        ArgumentCaptor<ChangeMessageVisibilityBatchRequest> argumentCaptor =
+                ArgumentCaptor.forClass(ChangeMessageVisibilityBatchRequest.class);
+        verify(amazonSQSClient).changeMessageVisibilityBatch(argumentCaptor.capture());
+
+        assertEquals(1, argumentCaptor.getAllValues().size());
+
+        assertEquals(QUEUE_URL, argumentCaptor.getAllValues().get(0).getQueueUrl());
+        List<ChangeMessageVisibilityBatchRequestEntry> captureList =  argumentCaptor.getAllValues().get(0).getEntries();
+        assertEquals(receiptHandles.size(), captureList.size());
+
+        for (ChangeMessageVisibilityBatchRequestEntry item : captureList) {
+            receiptHandles.contains(item.getReceiptHandle());
+        }
+    }
+
+    /**
+     * Test NegativeAcknowledger action
+     */
+    @Test
+    public void testActionReplyModeExplicitDelay30() throws JMSException {
+
+
+        List<String> receiptHandles = new ArrayList<String>();
+        receiptHandles.add("r0");
+        receiptHandles.add("r1");
+        receiptHandles.add("r2");
+
+        negativeAcknowledgerRetryModeExplicitDelay30.action(QUEUE_URL, receiptHandles);
+
+        ArgumentCaptor<ChangeMessageVisibilityBatchRequest> argumentCaptor =
+                ArgumentCaptor.forClass(ChangeMessageVisibilityBatchRequest.class);
+        verify(amazonSQSClient).changeMessageVisibilityBatch(argumentCaptor.capture());
+
+        assertEquals(1, argumentCaptor.getAllValues().size());
+
+        assertEquals(QUEUE_URL, argumentCaptor.getAllValues().get(0).getQueueUrl());
+        List<ChangeMessageVisibilityBatchRequestEntry> captureList =  argumentCaptor.getAllValues().get(0).getEntries();
+        assertEquals(receiptHandles.size(), captureList.size());
+
+        for (ChangeMessageVisibilityBatchRequestEntry item : captureList) {
+            receiptHandles.contains(item.getReceiptHandle());
+        }
+    }
+
+    /**
+     * Test NegativeAcknowledger action ReplyDelayQueueDelay
+     */
+    @Test
+    public void testActionReplyModeQueueDelay() throws JMSException {
+
+
+        List<String> receiptHandles = new ArrayList<String>();
+        receiptHandles.add("r0");
+        receiptHandles.add("r1");
+        receiptHandles.add("r2");
+
+        negativeAcknowledgerRetryModeQueueDelay.action(QUEUE_URL, receiptHandles);
+
+        verify(amazonSQSClient, never()).changeMessageVisibilityBatch(any(ChangeMessageVisibilityBatchRequest.class));
+    }
+
+    /**
+     * Test NegativeAcknowledger action
+     */
+    @Test
+    public void testActionReplyModeNull0() throws JMSException {
+
+
+        List<String> receiptHandles = new ArrayList<String>();
+        receiptHandles.add("r0");
+        receiptHandles.add("r1");
+        receiptHandles.add("r2");
+
+        negativeAcknowledgerRetryModeNull.action(QUEUE_URL, receiptHandles);
 
         ArgumentCaptor<ChangeMessageVisibilityBatchRequest> argumentCaptor =
                 ArgumentCaptor.forClass(ChangeMessageVisibilityBatchRequest.class);

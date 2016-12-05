@@ -71,7 +71,7 @@ public class SQSSessionCallbackScheduler implements Runnable {
         this.acknowledgeMode = acknowledgeMode;
         callbackQueue = new ArrayDeque<CallbackEntry>();
         negativeAcknowledger = new NegativeAcknowledger(
-                this.session.getParentConnection().getWrappedAmazonSQSClient(), changeMessageVisibilityIdGenerator);
+                this.session.getParentConnection().getWrappedAmazonSQSClient(), changeMessageVisibilityIdGenerator, session.getParentConnection().getSQSMessageRetryMode());
         this.acknowledger = acknowledger;
     }
     

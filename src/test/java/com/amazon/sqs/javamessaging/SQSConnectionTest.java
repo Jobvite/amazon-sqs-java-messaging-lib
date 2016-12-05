@@ -24,6 +24,8 @@ import com.amazon.sqs.javamessaging.AmazonSQSMessagingClientWrapper;
 import com.amazon.sqs.javamessaging.SQSConnection;
 import com.amazon.sqs.javamessaging.SQSQueueDestination;
 import com.amazon.sqs.javamessaging.SQSSession;
+import com.amazon.sqs.javamessaging.acknowledge.SQSMessageRetryMode;
+import com.amazon.sqs.javamessaging.acknowledge.SQSMessageRetryMode.RetryMode;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
@@ -56,7 +58,7 @@ public class SQSConnectionTest {
 
         int numberOfMessagesToPrefetch = 10;
         amazonSQSClientJMSWrapper = mock(AmazonSQSMessagingClientWrapper.class);
-        sqsConnection = spy(new SQSConnection(amazonSQSClientJMSWrapper, numberOfMessagesToPrefetch));
+        sqsConnection = spy(new SQSConnection(amazonSQSClientJMSWrapper, numberOfMessagesToPrefetch, new SQSMessageRetryMode(RetryMode.RETRY_MODE_DEFAULT_DELAY, 30)));
 
         session1 = mock(SQSSession.class);
         session2 = mock(SQSSession.class);

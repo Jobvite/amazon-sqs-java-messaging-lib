@@ -24,13 +24,17 @@ import com.amazon.sqs.javamessaging.SQSSessionCallbackScheduler;
 import com.amazon.sqs.javamessaging.acknowledge.AcknowledgeMode;
 import com.amazon.sqs.javamessaging.acknowledge.Acknowledger;
 import com.amazon.sqs.javamessaging.acknowledge.NegativeAcknowledger;
+import com.amazon.sqs.javamessaging.acknowledge.SQSMessageRetryMode;
+import com.amazon.sqs.javamessaging.acknowledge.SQSMessageRetryMode.RetryMode;
 import com.amazon.sqs.javamessaging.message.SQSMessage;
 
 import javax.jms.*;
 import javax.jms.IllegalStateException;
+
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+
 import org.junit.Before;
 import org.junit.Test;
 
@@ -88,8 +92,9 @@ public class MessageListenerConcurrentOperationTest {
         NegativeAcknowledger negativeAcknowledger = mock(NegativeAcknowledger.class);
         SQSQueueDestination sqsDestination = new SQSQueueDestination(QUEUE_NAME, QUEUE_URL);
         amazonSQSClient = mock(AmazonSQSMessagingClientWrapper.class);
+        SQSMessageRetryMode sqsMessageRetryMode = new SQSMessageRetryMode(RetryMode.RETRY_MODE_DEFAULT_DELAY, 30);
 
-        connection = new SQSConnection(amazonSQSClient, NUMBER_OF_MESSAGES_TO_PREFETCH);
+        connection = new SQSConnection(amazonSQSClient, NUMBER_OF_MESSAGES_TO_PREFETCH, sqsMessageRetryMode);
         session = new SQSSession(connection, AcknowledgeMode.ACK_AUTO);
         SQSSessionCallbackScheduler sqsSessionRunnable = new SQSSessionCallbackScheduler(session, AcknowledgeMode.ACK_AUTO, acknowledger);
 
@@ -113,6 +118,7 @@ public class MessageListenerConcurrentOperationTest {
     @Test
     public void testConcurrentSessionCloseOperation() throws JMSException, InterruptedException {
 
+        SQSMessageRetryMode sqsMessageRetryMode = new SQSMessageRetryMode(RetryMode.RETRY_MODE_DEFAULT_DELAY, 30);
         ConcurrentOperation closeSessionOperation = new ConcurrentOperation() {
             @Override
             public void setup() throws IllegalStateException {
@@ -134,7 +140,7 @@ public class MessageListenerConcurrentOperationTest {
         // Test session close operation with create producer operation
         for (int i = 0; i < 10; ++i) {
 
-            connection = new SQSConnection(amazonSQSClient, NUMBER_OF_MESSAGES_TO_PREFETCH);
+            connection = new SQSConnection(amazonSQSClient, NUMBER_OF_MESSAGES_TO_PREFETCH, sqsMessageRetryMode);
             session = (SQSSession) connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
 
             testConcurrentExecution(msgListenerCreatesProducer, closeSessionOperation);
@@ -144,7 +150,7 @@ public class MessageListenerConcurrentOperationTest {
         // Test session close operation with create consumer operation
         for (int i = 0; i < 10; ++i) {
 
-            connection = new SQSConnection(amazonSQSClient, NUMBER_OF_MESSAGES_TO_PREFETCH);
+            connection = new SQSConnection(amazonSQSClient, NUMBER_OF_MESSAGES_TO_PREFETCH, sqsMessageRetryMode);
             session = (SQSSession) connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
 
             testConcurrentExecution(msgListenerCreatesConsumer, closeSessionOperation);
@@ -159,6 +165,7 @@ public class MessageListenerConcurrentOperationTest {
     @Test
     public void testConcurrentConnectionStartOperation() throws JMSException, InterruptedException {
 
+        SQSMessageRetryMode sqsMessageRetryMode = new SQSMessageRetryMode(RetryMode.RETRY_MODE_DEFAULT_DELAY, 30);
         ConcurrentOperation startConnectionOperation = new ConcurrentOperation() {
             @Override
             public void setup() throws JMSException {
@@ -180,7 +187,7 @@ public class MessageListenerConcurrentOperationTest {
         // Test connection start operation with create producer operation
         for (int i = 0; i < 10; ++i) {
 
-            connection = new SQSConnection(amazonSQSClient, NUMBER_OF_MESSAGES_TO_PREFETCH);
+            connection = new SQSConnection(amazonSQSClient, NUMBER_OF_MESSAGES_TO_PREFETCH, sqsMessageRetryMode);
             session = (SQSSession) connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
 
             testConcurrentExecution(msgListenerCreatesProducer, startConnectionOperation);
@@ -190,7 +197,7 @@ public class MessageListenerConcurrentOperationTest {
         // Test connection start operation with create consumer operation
         for (int i = 0; i < 10; ++i) {
 
-            connection = new SQSConnection(amazonSQSClient, NUMBER_OF_MESSAGES_TO_PREFETCH);
+            connection = new SQSConnection(amazonSQSClient, NUMBER_OF_MESSAGES_TO_PREFETCH, sqsMessageRetryMode);
             session = (SQSSession) connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
 
             testConcurrentExecution(msgListenerCreatesConsumer, startConnectionOperation);
@@ -205,6 +212,7 @@ public class MessageListenerConcurrentOperationTest {
     @Test
     public void testConcurrentConnectionCloseOperation() throws JMSException, InterruptedException {
 
+        SQSMessageRetryMode sqsMessageRetryMode = new SQSMessageRetryMode(RetryMode.RETRY_MODE_DEFAULT_DELAY, 30);
         ConcurrentOperation closeConnectionOperation = new ConcurrentOperation() {
             @Override
             public void setup() throws JMSException {
@@ -224,7 +232,7 @@ public class MessageListenerConcurrentOperationTest {
 
         // Test connection close operation with create producer operation
         for (int i = 0; i < 10; ++i) {
-            connection = new SQSConnection(amazonSQSClient, NUMBER_OF_MESSAGES_TO_PREFETCH);
+            connection = new SQSConnection(amazonSQSClient, NUMBER_OF_MESSAGES_TO_PREFETCH, sqsMessageRetryMode);
             session = (SQSSession) connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
 
             testConcurrentExecution(msgListenerCreatesProducer, closeConnectionOperation);
@@ -232,7 +240,7 @@ public class MessageListenerConcurrentOperationTest {
 
         // Test connection close operation with create consumer operation
         for (int i = 0; i < 10; ++i) {
-            connection = new SQSConnection(amazonSQSClient, NUMBER_OF_MESSAGES_TO_PREFETCH);
+            connection = new SQSConnection(amazonSQSClient, NUMBER_OF_MESSAGES_TO_PREFETCH, sqsMessageRetryMode);
             session = (SQSSession) connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
 
             testConcurrentExecution(msgListenerCreatesConsumer, closeConnectionOperation);
@@ -246,6 +254,7 @@ public class MessageListenerConcurrentOperationTest {
     @Test
     public void testConcurrentConnectionStopOperation() throws JMSException, InterruptedException {
 
+        SQSMessageRetryMode sqsMessageRetryMode = new SQSMessageRetryMode(RetryMode.RETRY_MODE_DEFAULT_DELAY, 30);
         ConcurrentOperation stopConnectionOperation = new ConcurrentOperation() {
             @Override
             public void setup() throws JMSException {
@@ -269,7 +278,7 @@ public class MessageListenerConcurrentOperationTest {
         // Test connection stop operation with create producer operation
         for (int i = 0; i < 10; ++i) {
 
-            connection = new SQSConnection(amazonSQSClient, NUMBER_OF_MESSAGES_TO_PREFETCH);
+            connection = new SQSConnection(amazonSQSClient, NUMBER_OF_MESSAGES_TO_PREFETCH, sqsMessageRetryMode);
             session = (SQSSession) connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
 
             testConcurrentExecution(msgListenerCreatesProducer, stopConnectionOperation);
@@ -279,7 +288,7 @@ public class MessageListenerConcurrentOperationTest {
         // Test connection stop operation with create consumer operation
         for (int i = 0; i < 10; ++i) {
 
-            connection = new SQSConnection(amazonSQSClient, NUMBER_OF_MESSAGES_TO_PREFETCH);
+            connection = new SQSConnection(amazonSQSClient, NUMBER_OF_MESSAGES_TO_PREFETCH, sqsMessageRetryMode);
             session = (SQSSession) connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
 
             testConcurrentExecution(msgListenerCreatesConsumer, stopConnectionOperation);

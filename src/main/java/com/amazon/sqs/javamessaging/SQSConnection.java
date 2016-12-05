@@ -18,11 +18,8 @@ import java.util.Collections;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
-
 import javax.jms.IllegalStateException;
-
 import javax.jms.Connection;
-
 import javax.jms.ConnectionConsumer;
 import javax.jms.ConnectionMetaData;
 import javax.jms.Destination;
@@ -40,6 +37,7 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
 import com.amazon.sqs.javamessaging.acknowledge.AcknowledgeMode;
+import com.amazon.sqs.javamessaging.acknowledge.SQSMessageRetryMode;
 import com.amazonaws.services.sqs.AmazonSQS;
 
 /**
@@ -96,6 +94,7 @@ public class SQSConnection implements Connection, QueueConnection {
      * single consumer cannot prefetch more than 10 messages.
      */
     private final int numberOfMessagesToPrefetch;
+    private final SQSMessageRetryMode sqsMessageRetryMode;
     private volatile boolean closed = false;
     private volatile boolean closing = false;
 
@@ -110,10 +109,10 @@ public class SQSConnection implements Connection, QueueConnection {
 
     private final Set<Session> sessions = Collections.newSetFromMap(new ConcurrentHashMap<Session, Boolean>());
 
-    SQSConnection(AmazonSQSMessagingClientWrapper amazonSQSClientJMSWrapper, int numberOfMessagesToPrefetch) {
+    SQSConnection(AmazonSQSMessagingClientWrapper amazonSQSClientJMSWrapper, int numberOfMessagesToPrefetch, SQSMessageRetryMode sqsMessageRetryMode) {
         amazonSQSClient = amazonSQSClientJMSWrapper;
         this.numberOfMessagesToPrefetch = numberOfMessagesToPrefetch;
-
+        this.sqsMessageRetryMode = sqsMessageRetryMode;
     }
     
     /**
@@ -140,6 +139,10 @@ public class SQSConnection implements Connection, QueueConnection {
     
     int getNumberOfMessagesToPrefetch() {
         return numberOfMessagesToPrefetch;
+    }
+    
+    public SQSMessageRetryMode getSQSMessageRetryMode() {
+        return sqsMessageRetryMode;
     }
     
     /**
