@@ -4,7 +4,7 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
-  <groupId>com.amazonaws</groupId>
+  <groupId>com.jobvite</groupId>
   <artifactId>jv-amazon-sqs-java-messaging-lib</artifactId>
   <version>1.0.2.1</version>
   <packaging>jar</packaging>
@@ -97,4 +97,17 @@
       </plugin>
     </plugins>
   </build>
+  <distributionManagement>
+    <repository>
+      <id>jv-maven-repo-release</id>
+      <name>Jobvite Maven Repo Release</name>
+      <url>http://nexus.corp.jobvite.com:8081/nexus/content/repositories/jv-maven-repo-release</url>
+      <uniqueVersion>false</uniqueVersion>
+    </repository>
+    <snapshotRepository>
+      <id>jv-maven-repo-snapshot</id>
+      <name>Jobvite Maven Repo Snapshot</name>
+      <url>http://nexus.corp.jobvite.com:8081/nexus/content/repositories/jv-maven-repo-snapshot</url>
+    </snapshotRepository>
+  </distributionManagement>
 </project>
